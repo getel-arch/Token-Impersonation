@@ -2,8 +2,8 @@
  
 ## Build
 ```
-windres app.rc -O coff -o app.res
-gcc .\src\token_impersonation.c .\app.res -o token_impersonation.exe -m64 -s
+windres app.rc -O coff -o app.o
+gcc .\src\token_impersonation.c .\app.o -o token_impersonation.exe -m64 -s
 ```
 
 ## Usage
