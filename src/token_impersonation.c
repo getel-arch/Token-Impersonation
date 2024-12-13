@@ -8,7 +8,11 @@ BOOL EnablePrivilege(LPCTSTR privilege) {
     TOKEN_PRIVILEGES tp;
     LUID luid;
 
-    if (!LookupPrivilegeValue(NULL, privilege, &luid)) {
+    if (!LookupPrivilegeValue(
+            NULL,       // lpSystemName
+            privilege,  // lpName
+            &luid       // lpLuid
+            )) {
         printf("LookupPrivilegeValue error: %u\n", GetLastError());
         return FALSE;
     }
@@ -18,12 +22,23 @@ BOOL EnablePrivilege(LPCTSTR privilege) {
     tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
 
     HANDLE hToken;
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &hToken)) {
+    if (!OpenProcessToken(
+            GetCurrentProcess(),        // ProcessHandle
+            TOKEN_ADJUST_PRIVILEGES,    // DesiredAccess
+            &hToken                     // TokenHandle
+            )) {
         printf("OpenProcessToken error: %u\n", GetLastError());
         return FALSE;
     }
 
-    if (!AdjustTokenPrivileges(hToken, FALSE, &tp, sizeof(TOKEN_PRIVILEGES), NULL, NULL)) {
+    if (!AdjustTokenPrivileges(
+            hToken,                     // TokenHandle
+            FALSE,                      // DisableAllPrivileges
+            &tp,                        // NewState
+            sizeof(TOKEN_PRIVILEGES),   // BufferLength
+            NULL,                       // PreviousState
+            NULL                        // ReturnLength
+            )) {
         printf("AdjustTokenPrivileges error: %u\n", GetLastError());
         CloseHandle(hToken);
         return FALSE;
@@ -42,7 +57,15 @@ BOOL GetUserSid(LPCSTR username, PSID *sid) {
     *sid = (PSID)malloc(sidSize);
     char *domain = (char *)malloc(domainSize);
 
-    if (!LookupAccountNameA(NULL, username, *sid, &sidSize, domain, &domainSize, &sidType)) {
+    if (!LookupAccountNameA(
+            NULL,           // lpSystemName
+            username,       // lpAccountName
+            *sid,           // Sid
+            &sidSize,       // cbSid
+            domain,         // ReferencedDomainName
+            &domainSize,    // cchReferencedDomainName
+            &sidType        // peUse
+            )) {
         free(*sid);
         free(domain);
         return FALSE;
@@ -54,13 +77,21 @@ BOOL GetUserSid(LPCSTR username, PSID *sid) {
 
 // Function to check if a process is running as a specific user
 BOOL IsProcessRunningAsUser(DWORD processId, PSID userSid) {
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, processId);
+    HANDLE hProcess = OpenProcess(
+        PROCESS_QUERY_INFORMATION,  // dwDesiredAccess
+        FALSE,                      // bInheritHandle
+        processId                   // dwProcessId
+        );
     if (hProcess == NULL) {
         return FALSE;
     }
 
     HANDLE hToken;
-    if (!OpenProcessToken(hProcess, TOKEN_QUERY, &hToken)) {
+    if (!OpenProcessToken(
+            hProcess,       // ProcessHandle
+            TOKEN_QUERY,    // DesiredAccess
+            &hToken         // TokenHandle
+            )) {
         CloseHandle(hProcess);
         return FALSE;
     }
@@ -75,14 +106,23 @@ BOOL IsProcessRunningAsUser(DWORD processId, PSID userSid) {
         return FALSE;
     }
 
-    if (!GetTokenInformation(hToken, TokenUser, tokenUser, tokenUserLength, &tokenUserLength)) {
+    if (!GetTokenInformation(
+            hToken,             // TokenHandle
+            TokenUser,          // TokenInformationClass
+            tokenUser,          // TokenInformation
+            tokenUserLength,    // TokenInformationLength
+            &tokenUserLength    // ReturnLength
+            )) {
         free(tokenUser);
         CloseHandle(hToken);
         CloseHandle(hProcess);
         return FALSE;
     }
 
-    BOOL isUser = EqualSid(tokenUser->User.Sid, userSid);
+    BOOL isUser = EqualSid(
+        tokenUser->User.Sid,    // pSid1
+        userSid                 // pSid2
+        );
     free(tokenUser);
     CloseHandle(hToken);
     CloseHandle(hProcess);
@@ -122,7 +162,10 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    HANDLE hSnapshot = CreateToolhelp32Snapshot(
+            TH32CS_SNAPPROCESS, // dwFlags
+            0                   // th32ProcessID
+            );
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         printf("CreateToolhelp32Snapshot error: %u\n", GetLastError());
         free(targetSid);
@@ -132,7 +175,10 @@ int main(int argc, char *argv[]) {
     PROCESSENTRY32 pe32;
     pe32.dwSize = sizeof(PROCESSENTRY32);
 
-    if (!Process32First(hSnapshot, &pe32)) {
+    if (!Process32First(
+            hSnapshot,  // hSnapshot
+            &pe32       // lppe
+            )) {
         printf("Process32First error: %u\n", GetLastError());
         CloseHandle(hSnapshot);
         free(targetSid);
@@ -159,7 +205,11 @@ int main(int argc, char *argv[]) {
     }
 
     // Open the target process
-    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, targetPID);
+    HANDLE hProcess = OpenProcess(
+            PROCESS_QUERY_INFORMATION,  // dwDesiredAccess
+            FALSE,                      // bInheritHandle
+            targetPID                   // dwProcessId
+            );
     if (hProcess == NULL) {
         printf("OpenProcess error: %u\n", GetLastError());
         return 1;
@@ -167,7 +217,11 @@ int main(int argc, char *argv[]) {
 
     // Open the token of the target process
     HANDLE hToken;
-    if (!OpenProcessToken(hProcess, TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY, &hToken)) {
+    if (!OpenProcessToken(
+            hProcess,                                               // ProcessHandle
+            TOKEN_DUPLICATE | TOKEN_ASSIGN_PRIMARY | TOKEN_QUERY,   // DesiredAccess
+            &hToken                                                 // TokenHandle
+            )) {
         printf("OpenProcessToken error: %u\n", GetLastError());
         CloseHandle(hProcess);
         return 1;
@@ -175,7 +229,14 @@ int main(int argc, char *argv[]) {
 
     // Duplicate the token
     HANDLE hImpersonationToken;
-    if (!DuplicateTokenEx(hToken, MAXIMUM_ALLOWED, NULL, SecurityImpersonation, TokenPrimary, &hImpersonationToken)) {
+    if (!DuplicateTokenEx(
+            hToken,                 // hExistingToken
+            MAXIMUM_ALLOWED,        // dwDesiredAccess
+            NULL,                   // lpTokenAttributes
+            SecurityImpersonation,  // ImpersonationLevel
+            TokenPrimary,           // TokenType
+            &hImpersonationToken    // phNewToken
+            )) {
         printf("DuplicateTokenEx error: %u\n", GetLastError());
         CloseHandle(hToken);
         CloseHandle(hProcess);
@@ -191,7 +252,17 @@ int main(int argc, char *argv[]) {
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
-    if (!CreateProcessWithTokenW(hImpersonationToken, LOGON_NETCREDENTIALS_ONLY, NULL, commandLine, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+    if (!CreateProcessWithTokenW(
+            hImpersonationToken,        // hToken
+            LOGON_NETCREDENTIALS_ONLY,  // dwLogonFlags
+            NULL,                       // lpApplicationName
+            commandLine,                // lpCommandLine
+            CREATE_NEW_CONSOLE,         // dwCreationFlags
+            NULL,                       // lpEnvironment
+            NULL,                       // lpCurrentDirectory
+            &si,                        // lpStartupInfo
+            &pi                         // lpProcessInformation
+            )) {
         printf("CreateProcessWithTokenW error: %u\n", GetLastError());
         CloseHandle(hImpersonationToken);
         CloseHandle(hToken);
@@ -200,7 +271,10 @@ int main(int argc, char *argv[]) {
     }
 
     // Wait for the process to exit
-    WaitForSingleObject(pi.hProcess, INFINITE);
+    WaitForSingleObject(
+        pi.hProcess,    // hHandle
+        INFINITE        // dwMilliseconds
+        );
 
     // Revert to self
     if (!RevertToSelf()) {
