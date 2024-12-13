@@ -90,7 +90,7 @@ BOOL IsProcessRunningAsUser(DWORD processId, PSID userSid) {
     return isUser;
 }
 
-LPCWSTR ConvertToLPCWSTR(const char* charString) {
+LPWSTR ConvertToLPWSTR(const char* charString) {
     size_t length = strlen(charString) + 1;
     wchar_t* wString = (wchar_t*)malloc(length * sizeof(wchar_t));
     if (wString == NULL) {
@@ -102,12 +102,12 @@ LPCWSTR ConvertToLPCWSTR(const char* charString) {
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
-        printf("Usage: %s <username> <program>\n", argv[0]);
+        printf("Usage: %s <username> <command_line>\n", argv[0]);
         return 1;
     }
 
     char *targetUsername = argv[1];
-    LPCWSTR processName = ConvertToLPCWSTR(argv[2]);
+    LPWSTR commandLine = ConvertToLPWSTR(argv[2]);
     PSID targetSid;
 
     if (!GetUserSid(targetUsername, &targetSid)) {
@@ -191,7 +191,7 @@ int main(int argc, char *argv[]) {
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
-    if (!CreateProcessWithTokenW(hImpersonationToken, LOGON_NETCREDENTIALS_ONLY, processName, NULL, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
+    if (!CreateProcessWithTokenW(hImpersonationToken, LOGON_NETCREDENTIALS_ONLY, NULL, commandLine, CREATE_NEW_CONSOLE, NULL, NULL, &si, &pi)) {
         printf("CreateProcessWithTokenW error: %u\n", GetLastError());
         CloseHandle(hImpersonationToken);
         CloseHandle(hToken);
