@@ -8,7 +8,7 @@ gcc .\src\token_impersonation.c .\app.o -o .\output\token_impersonation_x64.exe 
 
 ## Usage
 ```
-token_impersonation.exe SYSTEM cmd.exe
+token_impersonation_x64.exe SYSTEM cmd.exe
 ```
 
 ## Notes
